@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IP 位址解剖室</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+TC:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#060c1a;--bg2:#0d1628;--bg3:#111e35;
+    --net:#00e5ff;--host:#ff9500;--zero:#1a2540;
+    --text:#c8d8f0;--dim:#4a6080;--accent:#00ff88;--border:#1e3050;
+    --mono:'Space Mono',monospace;--sans:'Noto Sans TC',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,.03)1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.03)1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+  .wrap{max-width:980px;margin:0 auto;padding:0 20px;position:relative;z-index:1}
+
+  header{padding:40px 0 20px;text-align:center}
+  .eye{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--accent);text-transform:uppercase;margin-bottom:10px}
+  h1{font-size:clamp(24px,5vw,42px);font-weight:700;font-family:var(--mono);background:linear-gradient(135deg,#c8d8f0,var(--net) 50%,var(--host));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:8px}
+  .sub{color:var(--dim);font-size:14px;font-weight:300}
+
+  .tabs{display:flex;gap:8px;justify-content:center;margin:24px 0 18px;flex-wrap:wrap}
+  .tab{background:var(--bg3);border:1px solid var(--border);color:var(--dim);font-family:var(--mono);font-size:13px;padding:8px 20px;cursor:pointer;border-radius:4px;transition:all .2s;letter-spacing:.05em}
+  .tab.on{background:transparent;border-color:var(--net);color:var(--net);box-shadow:0 0 12px rgba(0,229,255,.15),inset 0 0 12px rgba(0,229,255,.05)}
+  .tab:hover:not(.on){border-color:var(--dim);color:var(--text)}
+
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;position:relative;overflow:hidden}
+  .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--net),transparent);opacity:.4}
+
+  /* input */
+  .irow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;padding:12px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px}
+  .irow label{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.1em;white-space:nowrap}
+  .iip{font-family:var(--mono);font-size:14px;background:var(--bg);border:1px solid var(--border);color:var(--net);padding:6px 10px;border-radius:4px;width:200px;outline:none;transition:border-color .2s}
+  .iip:focus{border-color:var(--net);box-shadow:0 0 8px rgba(0,229,255,.2)}
+  .iip.err{border-color:#ff4d4d;color:#ff4d4d}
+  .imask{font-family:var(--mono);font-size:14px;background:var(--bg);border:1px solid var(--border);color:var(--net);padding:6px 8px;border-radius:4px;width:64px;outline:none;transition:border-color .2s}
+  .imask:focus{border-color:var(--net);box-shadow:0 0 8px rgba(0,229,255,.2)}
+  .imask.err{border-color:#ff4d4d;color:#ff4d4d}
+  .islash{font-family:var(--mono);color:var(--dim);font-size:16px}
+  .isep{width:1px;height:22px;background:var(--border);margin:0 2px}
+  .ierr{font-family:var(--mono);font-size:11px;color:#ff4d4d;margin-left:4px}
+
+  /* class badge */
+  .crow{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .cbadge{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;border:1px solid;letter-spacing:.08em;transition:all .3s}
+  .clet{font-size:17px;font-weight:700}
+  .ca{color:#ff6b6b;border-color:#ff6b6b;background:rgba(255,107,107,.08)}
+  .cb{color:#ffd93d;border-color:#ffd93d;background:rgba(255,217,61,.08)}
+  .cc{color:var(--net);border-color:var(--net);background:rgba(0,229,255,.08)}
+  .cd{color:#c77dff;border-color:#c77dff;background:rgba(199,125,255,.08)}
+  .ce{color:var(--host);border-color:var(--host);background:rgba(255,149,0,.08)}
+  .cpriv{font-size:11px;color:var(--accent);background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.25);border-radius:12px;padding:3px 10px;font-family:var(--mono)}
+  .cdesc{font-size:12px;color:var(--dim)}
+
+  /* ip display */
+  .ipdisp{font-family:var(--mono);font-size:clamp(14px,2.4vw,20px);text-align:center;letter-spacing:.05em;margin-bottom:14px;min-height:28px;transition:all .2s}
+  .n{color:var(--net)} .d{color:var(--dim)} .h{color:var(--host)}
+  /* hover highlight on ip display spans */
+  .ipdisp span.seg{transition:opacity .2s}
+  .ipdisp.grp-hover span.seg{opacity:.25}
+  .ipdisp.grp-hover span.seg.hl{opacity:1;text-shadow:0 0 8px currentColor}
+
+  /* ── v6 group card layout ── */
+  .bgwrap{overflow-x:auto;padding-bottom:4px;margin-bottom:4px}
+
+  /* v6 outer row: 8 group cards side by side */
+  .v6row{display:flex;gap:4px;justify-content:center;flex-wrap:nowrap;min-width:fit-content}
+
+  /* single group card */
+  .v6card{
+    display:flex;flex-direction:column;align-items:center;
+    border:1px solid transparent;border-radius:6px;
+    padding:4px 3px 5px;gap:4px;
+    transition:border-color .18s,background .18s,opacity .18s;
+    cursor:default;
+  }
+  .v6card.gn{background:rgba(0,229,255,.04);border-color:rgba(0,229,255,.18)}
+  .v6card.gh{background:rgba(255,149,0,.04);border-color:rgba(255,149,0,.18)}
+  .v6card.gs{background:rgba(200,200,200,.03);border-color:rgba(200,200,200,.1)}
+
+  /* dim sibling cards on hover */
+  .v6row.has-hover .v6card{opacity:.28;border-color:transparent}
+  .v6row.has-hover .v6card.hovered{opacity:1}
+  .v6row.has-hover .v6card.hovered.gn{border-color:rgba(0,229,255,.5);background:rgba(0,229,255,.08)}
+  .v6row.has-hover .v6card.hovered.gh{border-color:rgba(255,149,0,.5);background:rgba(255,149,0,.08)}
+  .v6row.has-hover .v6card.hovered.gs{border-color:rgba(200,200,200,.3);background:rgba(200,200,200,.05)}
+
+  /* hex chars row inside card — 4 chars each aligned over 4 bits */
+  .v6chars{display:flex;gap:2px;width:100%}
+  .v6char{
+    flex:0 0 calc(25% - 1.5px); /* 4 chars, same total width as 4 bits below */
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:14px;font-weight:700;
+    height:22px;border-radius:3px;
+    border:1px solid transparent;
+    transition:color .15s,background .15s,border-color .15s,opacity .15s;
+    cursor:default;
+  }
+  .v6char.gn{color:var(--net)}
+  .v6char.gh{color:var(--host)}
+  .v6char.gs{color:var(--dim)}
+
+  /* char hover — dim siblings within card, highlight matching bits */
+  .v6chars.char-hover .v6char{opacity:.3}
+  .v6chars.char-hover .v6char.char-hl{opacity:1;text-shadow:0 0 6px currentColor}
+
+  /* bit sub-groups: 4 groups of 4 bits, separated by a subtle gap */
+  .v6bits{display:flex;gap:6px}
+  .v6nibble{display:flex;gap:2px}
+
+  /* bit cell */
+  .bc{width:20px;height:25px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;border-radius:3px;cursor:pointer;transition:all .15s cubic-bezier(.34,1.56,.64,1);user-select:none;border:1px solid transparent}
+  .bc.z{background:var(--zero);color:var(--dim)}
+  .bc.o.nn{background:rgba(0,229,255,.12);color:var(--net);border-color:rgba(0,229,255,.3);box-shadow:0 0 5px rgba(0,229,255,.2)}
+  .bc.o.hh{background:rgba(255,149,0,.12);color:var(--host);border-color:rgba(255,149,0,.3);box-shadow:0 0 5px rgba(255,149,0,.2)}
+  .bc.z.nn{background:rgba(0,229,255,.04);color:rgba(0,229,255,.35);border-color:rgba(0,229,255,.12)}
+  .bc.z.hh{background:rgba(255,149,0,.04);color:rgba(255,149,0,.35);border-color:rgba(255,149,0,.12)}
+  .bc.lk{cursor:default;opacity:.85}
+  .bc:not(.lk):hover{transform:scale(1.15) translateY(-2px)}
+  .bc.fa{animation:flip .22s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes flip{0%{transform:scaleY(1)}40%{transform:scaleY(.1)}100%{transform:scaleY(1)}}
+
+  /* dim bits when a char is hovered */
+  .v6nibble.nib-dim .bc{opacity:.2}
+  .v6nibble.nib-hl .bc{opacity:1;filter:brightness(1.3)}
+
+  /* v4 grid (unchanged) */
+  .olabels{display:flex;gap:3px;justify-content:center;margin-bottom:4px;flex-wrap:wrap}
+  .ogrp{display:flex;gap:3px}
+  .otag{width:20px;font-family:var(--mono);font-size:9px;text-align:center;color:var(--dim);opacity:.6}
+  .v4grid{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;min-width:fit-content}
+  .v4grp{display:flex;gap:3px}
+  .v4grp::after{content:'';display:block;width:8px}
+
+  /* prefix slider */
+  .pctrl{margin:14px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .plbl{font-family:var(--mono);font-size:12px;color:var(--dim);white-space:nowrap;min-width:88px}
+  .pslider{flex:1;min-width:160px;-webkit-appearance:none;height:3px;border-radius:2px;outline:none;cursor:pointer;background:linear-gradient(to right,var(--net) 0%,var(--net) var(--fp,75%),var(--border) var(--fp,75%),var(--border) 100%)}
+  .pslider::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--bg);border:2px solid var(--net);box-shadow:0 0 8px rgba(0,229,255,.5);cursor:grab}
+  .pslider::-webkit-slider-thumb:active{cursor:grabbing;box-shadow:0 0 16px rgba(0,229,255,.8)}
+  .pval{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--net);min-width:44px;text-align:right}
+
+  .leg{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px}
+  .li{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);font-family:var(--mono)}
+  .ld{width:10px;height:10px;border-radius:2px}
+
+  .iboxrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  @media(max-width:540px){.iboxrow{grid-template-columns:1fr}}
+  .ibox{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px}
+  .iblbl{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:5px}
+  .ibn{color:var(--net)} .ibh{color:var(--host)}
+  .ibval{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px}
+  .ibdesc{font-size:12px;color:var(--dim);line-height:1.5;white-space:pre-line}
+
+  .ctrls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+  .cbtn{background:transparent;border:1px solid var(--border);color:var(--dim);font-family:var(--mono);font-size:11px;padding:6px 13px;border-radius:4px;cursor:pointer;transition:all .2s;letter-spacing:.08em}
+  .cbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .cbtn.on{border-color:var(--accent);color:var(--accent);box-shadow:0 0 8px rgba(0,255,136,.2)}
+  .chint{font-size:11px;color:var(--dim);font-family:var(--mono);margin-left:auto}
+
+  /* compare */
+  .cprow{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center;margin:14px 0}
+  .cpbox{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center}
+  .cptitle{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.1em;margin-bottom:6px}
+  .cpbig{font-family:var(--mono);font-size:clamp(20px,4vw,34px);font-weight:700;color:var(--net);line-height:1}
+  .cpbig.v6c{color:var(--host)}
+  .cpunit{font-size:11px;color:var(--dim);margin-top:3px}
+  .cpvs{font-family:var(--mono);font-size:18px;color:var(--dim)}
+  .mbits{display:flex;flex-wrap:wrap;gap:2px;justify-content:center;margin-top:8px}
+  .mb{width:8px;height:8px;border-radius:1px;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.15);transition:background .5s}
+  .mb.on{background:rgba(0,229,255,.5);border-color:var(--net)}
+  .mb.v6on{background:rgba(255,149,0,.5);border-color:var(--host)}
+
+  /* explainer */
+  .expl{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:16px}
+  .etitle{font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:.1em;margin-bottom:12px}
+  .slist{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .si{display:flex;gap:12px;align-items:flex-start}
+  .sn{font-family:var(--mono);font-size:11px;color:var(--net);background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);border-radius:3px;padding:2px 7px;white-space:nowrap;margin-top:2px}
+  .st{font-size:13px;color:var(--dim);line-height:1.6}
+  .st strong{color:var(--text);font-weight:400}
+
+  /* packet */
+  .pkcard{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:22px 24px;margin-bottom:16px;cursor:pointer;transition:border-color .2s}
+  .pkcard:hover{border-color:rgba(0,229,255,.3)}
+  .pkh{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .pkico{width:34px;height:34px;border-radius:8px;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);display:flex;align-items:center;justify-content:center;font-size:17px}
+  .pktitle{font-family:var(--mono);font-size:14px;color:var(--text)}
+  .pksub{font-size:11px;color:var(--dim);margin-top:2px}
+  .pkspeech{background:var(--bg3);border-left:3px solid var(--net);border-radius:0 8px 8px 0;padding:14px 18px;font-size:14px;color:var(--text);line-height:1.7;display:none}
+  .pkspeech.vis{display:block;animation:fsd .3s ease-out}
+  @keyframes fsd{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+  .pkspeech em{font-style:normal;color:var(--net)}
+  .pkspeech .he{color:var(--host)}
+  .clickhint{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:auto;display:flex;align-items:center;gap:6px}
+  .clickhint::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pu 2s infinite}
+  @keyframes pu{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+
+  footer{text-align:center;padding:24px 0;font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.1em}
+  ::-webkit-scrollbar{width:4px;height:4px} ::-webkit-scrollbar-track{background:var(--bg)} ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+  /* ── Side Drawer ── */
+  .drawer-btn{
+    position:fixed;right:0;top:50%;transform:translateY(-50%);
+    background:var(--bg2);border:1px solid var(--border);border-right:none;
+    color:var(--dim);font-family:var(--mono);font-size:11px;letter-spacing:.08em;
+    padding:14px 6px;border-radius:6px 0 0 6px;cursor:pointer;
+    writing-mode:vertical-rl;text-orientation:mixed;
+    transition:color .2s,border-color .2s;z-index:100;
+  }
+  .drawer-btn:hover{color:var(--accent);border-color:var(--accent)}
+  .drawer-btn.open{color:var(--accent);border-color:var(--accent)}
+
+  .drawer-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.5);
+    opacity:0;pointer-events:none;transition:opacity .25s;z-index:200;
+  }
+  .drawer-overlay.vis{opacity:1;pointer-events:auto}
+
+  .drawer{
+    position:fixed;top:0;right:0;height:100vh;width:340px;max-width:92vw;
+    background:var(--bg2);border-left:1px solid var(--border);
+    transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);
+    z-index:300;overflow-y:auto;padding:0;
+  }
+  .drawer.open{transform:translateX(0)}
+
+  .drawer-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 20px 14px;border-bottom:1px solid var(--border);
+    position:sticky;top:0;background:var(--bg2);z-index:1;
+  }
+  .drawer-title{font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:.1em}
+  .drawer-close{background:transparent;border:1px solid var(--border);color:var(--dim);font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:4px;cursor:pointer;transition:all .2s}
+  .drawer-close:hover{border-color:var(--accent);color:var(--accent)}
+
+  .drawer-body{padding:20px}
+
+  .dsec{margin-bottom:28px}
+  .dsec-title{font-family:var(--mono);font-size:11px;color:var(--net);letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+
+  .dsec p{font-size:13px;color:var(--dim);line-height:1.7;margin-bottom:10px}
+  .dsec p strong{color:var(--text);font-weight:400}
+
+  /* weight table */
+  .wtable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;margin:10px 0}
+  .wtable th{color:var(--dim);font-weight:400;padding:4px 6px;border-bottom:1px solid var(--border);text-align:center}
+  .wtable td{padding:5px 6px;text-align:center;border-bottom:1px solid rgba(255,255,255,.04)}
+  .wtable td.bit-val{color:var(--host);font-weight:700}
+  .wtable td.dec-val{color:var(--net)}
+
+  /* hex nibble demo */
+  .nibdemo{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+  .nibrow{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px}
+  .nibrow .bits{display:flex;gap:3px}
+  .nibrow .nb{width:18px;height:22px;display:flex;align-items:center;justify-content:center;background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.2);border-radius:3px;color:var(--net);font-size:11px;font-weight:700}
+  .nibrow .arr{color:var(--dim)}
+  .nibrow .hexv{color:var(--host);font-size:15px;font-weight:700;min-width:20px}
+  .nibrow .decv{color:var(--dim);font-size:11px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eye">互動圖解 · IP Address</div>
+  <h1>IP 位址解剖室</h1>
+  <p class="sub">從 32 個 0 與 1，看懂網路的身份系統</p>
+</header>
+
+<div class="tabs">
+  <button class="tab on" onclick="switchTab('v4')">IPv4 · 32 bits</button>
+  <button class="tab" onclick="switchTab('v6')">IPv6 · 128 bits</button>
+  <button class="tab" onclick="switchTab('compare')">比較</button>
+</div>
+
+<div id="pv4" class="card">
+  <div class="irow">
+    <label>IP 位址</label>
+    <input class="iip" id="iip" placeholder="192.168.1.1" spellcheck="false" autocomplete="off">
+    <div class="isep"></div>
+    <label>Prefix</label>
+    <span class="islash">/</span>
+    <input class="imask" id="imask" type="number" placeholder="24" min="1" max="30">
+    <span class="ierr" id="ierr"></span>
+  </div>
+
+  <div class="crow" id="crow">
+    <div class="cbadge cc" id="cbadge"><span class="clet" id="clet">C</span><span id="cname">Class C</span></div>
+    <span class="cpriv" id="cpriv" style="display:none">🔒 私有 Private</span>
+    <span class="cdesc" id="cdesc">192–223 開頭，小型網路，預設 /24</span>
+  </div>
+
+  <div class="ipdisp" id="ipdisp">─</div>
+
+  <div class="bgwrap">
+    <!-- v4 -->
+    <div class="olabels" id="olabels"></div>
+    <div class="v4grid" id="v4g"></div>
+    <!-- v6 -->
+    <div class="v6row" id="v6row" style="display:none"></div>
+  </div>
+
+  <div class="pctrl">
+    <span class="plbl" id="plbl">Subnet Mask</span>
+    <input type="range" class="pslider" id="pslider" min="1" max="30" value="24">
+    <span class="pval" id="pval">/24</span>
+  </div>
+
+  <div class="leg">
+    <div class="li"><div class="ld" style="background:rgba(0,229,255,.4);border:1px solid var(--net)"></div>Network — mask 鎖定</div>
+    <div class="li"><div class="ld" style="background:rgba(255,149,0,.4);border:1px solid var(--host)"></div>Host — 可翻轉</div>
+  </div>
+
+  <div class="iboxrow">
+    <div class="ibox"><div class="iblbl ibn">Network Address</div><div class="ibval" id="naddr">─</div><div class="ibdesc">所有同網段設備共用前段</div></div>
+    <div class="ibox"><div class="iblbl ibh">可用 Host 數量</div><div class="ibval" id="hcnt">─</div><div class="ibdesc" id="hdesc"></div></div>
+  </div>
+
+  <div class="ctrls">
+    <button class="cbtn" id="baf" onclick="toggleAF()">▶ 自動翻轉 HOST</button>
+    <button class="cbtn" onclick="randomize()">⟳ 隨機</button>
+    <button class="cbtn" onclick="resetB()">↺ 重置</button>
+    <span class="chint" id="chint">點擊橙色 bit 可手動翻轉</span>
+  </div>
+</div>
+
+<!-- Compare panel -->
+<div id="pcmp" class="card" style="display:none">
+  <div style="text-align:center;margin-bottom:18px"><div class="eye">IPv4 vs IPv6</div><p style="font-size:13px;color:var(--dim);margin-top:7px">網際網路地址快用完了，所以有了 IPv6</p></div>
+  <div class="cprow">
+    <div class="cpbox"><div class="cptitle">IPv4</div><div class="cpbig">32</div><div class="cpunit">bits</div><div class="mbits" id="mv4"></div><div style="margin-top:9px;font-family:var(--mono);font-size:13px;color:var(--net)">~43 億</div><div style="font-size:11px;color:var(--dim);margin-top:2px">個地址</div></div>
+    <div class="cpvs">vs</div>
+    <div class="cpbox"><div class="cptitle">IPv6</div><div class="cpbig v6c">128</div><div class="cpunit">bits</div><div class="mbits" id="mv6"></div><div style="margin-top:9px;font-family:var(--mono);font-size:13px;color:var(--host)">3.4 × 10³⁸</div><div style="font-size:11px;color:var(--dim);margin-top:2px">個地址</div></div>
+  </div>
+  <div style="background:var(--bg3);border-radius:8px;padding:13px 16px;margin-top:6px"><div style="font-family:var(--mono);font-size:11px;color:var(--accent);margin-bottom:7px;letter-spacing:.1em">類比</div><p style="font-size:13px;color:var(--dim);line-height:1.7">IPv4 就像只有 <strong style="color:var(--text)">43 億個門牌號碼</strong>，全球設備不斷增加，很快就不夠用。IPv6 的地址數量大到可以替地球上<strong style="color:var(--text)">每一粒沙</strong>都分配好幾個獨立地址。</p></div>
+  <div style="margin-top:10px;background:var(--bg3);border-radius:8px;padding:13px 16px"><div style="font-family:var(--mono);font-size:11px;color:var(--accent);margin-bottom:9px;letter-spacing:.1em">格式對比</div><div style="display:flex;flex-direction:column;gap:10px"><div><div style="font-size:11px;color:var(--dim);margin-bottom:3px;font-family:var(--mono)">IPv4 — 十進制，點分四組</div><div style="font-family:var(--mono);font-size:15px;color:var(--net)">192.168.1.100</div></div><div><div style="font-size:11px;color:var(--dim);margin-bottom:3px;font-family:var(--mono)">IPv6 — 十六進制，冒號分八組（全大寫）</div><div style="font-family:var(--mono);font-size:15px;color:var(--host)">2001:0DB8:85A3::8A2E:0370:7334</div></div></div></div>
+</div>
+
+<!-- Explainer -->
+<div class="expl">
+  <div class="etitle">// 這在說什麼？</div>
+  <ul class="slist">
+    <li class="si"><span class="sn">01</span><span class="st">每個連上網路的設備都有一個 <strong>IP 位址</strong>，就像門牌號碼。</span></li>
+    <li class="si"><span class="sn">02</span><span class="st">這個號碼底層是一串 <strong>0 和 1</strong>。IPv4 有 32 個，IPv6 有 128 個。</span></li>
+    <li class="si"><span class="sn">03</span><span class="st"><strong>Prefix（/24）</strong>就像「里」，前面固定的部分代表你在哪個網段，後面才是你自己的號碼。</span></li>
+    <li class="si"><span class="sn">04</span><span class="st">IPv6 模式：Hover 整個 group 看 IP 對應位置，Hover 單一 hex 字元看對應的 4 個 bit。</span></li>
+  </ul>
+</div>
+
+<!-- Packet -->
+<div class="pkcard" onclick="togglePkt()">
+  <div class="pkh">
+    <div class="pkico">📦</div>
+    <div><div class="pktitle">封包的自我介紹</div><div class="pksub">點擊展開</div></div>
+    <div class="clickhint">點我說話</div>
+  </div>
+  <div class="pkspeech" id="pkspeech">
+    嗨，我是一個<em> IP 封包</em>。<br><br>
+    我的工作是把資料從 A 送到 B。每次出發前，我身上會貼好兩個標籤——<em>來源 IP</em> 跟<em>目的地 IP</em>。<br><br>
+    我不知道完整路線，只知道「下一站去哪」。路由器看到我，查一下表，把我推向正確方向。<br><br>
+    如果目的地是 <em>192.168</em>.<span class="he">1.100</span>，前三組是網段（藍），最後一組是這台設備（橙）——<span class="he">就是你</span>。<br><br>
+    一次傳輸可能有幾千個像我這樣的封包同時在路上，各自獨立，到了目的地才重新組合。<br><br>
+    <span style="color:var(--dim);font-size:12px">— 封包，2024 年某個毫秒</span>
+  </div>
+</div>
+
+<footer>IP VISUALIZER · 互動教學工具</footer>
+</div><!-- .wrap -->
+
+<!-- Side drawer button -->
+<button class="drawer-btn" id="drawerBtn" onclick="toggleDrawer()">進制說明</button>
+
+<!-- Overlay -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+
+<!-- Drawer -->
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <span class="drawer-title">// 進制說明</span>
+    <button class="drawer-close" onclick="closeDrawer()">✕ 關閉</button>
+  </div>
+  <div class="drawer-body">
+
+    <div class="dsec">
+      <div class="dsec-title">二進制 Binary</div>
+      <p>電腦只有「開」和「關」兩種狀態，對應 <strong>1</strong> 和 <strong>0</strong>。這就是二進制——逢二進一。</p>
+      <p>每個位置的值是 2 的次方，從右到左：1、2、4、8、16、32、64、128。</p>
+      <table class="wtable">
+        <tr><th>位置</th><th>7</th><th>6</th><th>5</th><th>4</th><th>3</th><th>2</th><th>1</th><th>0</th></tr>
+        <tr><td style="color:var(--dim)">權重</td><td>128</td><td>64</td><td>32</td><td>16</td><td>8</td><td>4</td><td>2</td><td>1</td></tr>
+        <tr><td style="color:var(--dim)">bit 值</td><td class="bit-val">1</td><td class="bit-val">1</td><td class="bit-val">0</td><td class="bit-val">0</td><td class="bit-val">0</td><td class="bit-val">0</td><td class="bit-val">0</td><td class="bit-val">0</td></tr>
+        <tr><td style="color:var(--dim)">十進制</td><td colspan="8" class="dec-val">128 + 64 = 192</td></tr>
+      </table>
+      <p style="margin-top:6px">所以 <strong>11000000</strong> = 192，也就是 IPv4 常見的 192.x.x.x 的第一段。</p>
+    </div>
+
+    <div class="dsec">
+      <div class="dsec-title">十六進制 Hexadecimal</div>
+      <p>十六進制用 <strong>0–9</strong> 加上 <strong>A–F</strong> 共 16 個符號，每個符號代表 4 個 bit（一個 nibble）。</p>
+      <p>IPv6 用十六進制是因為 128 個 bit 寫成十進制太長，hex 每 4 bit 一個字元，剛好壓縮四倍。</p>
+      <div class="nibdemo">
+        <div class="nibrow"><div class="bits"><div class="nb">0</div><div class="nb">0</div><div class="nb">0</div><div class="nb">0</div></div><div class="arr">→</div><div class="hexv">0</div><div class="decv">= 0</div></div>
+        <div class="nibrow"><div class="bits"><div class="nb">0</div><div class="nb">1</div><div class="nb">0</div><div class="nb">1</div></div><div class="arr">→</div><div class="hexv">5</div><div class="decv">= 5</div></div>
+        <div class="nibrow"><div class="bits"><div class="nb">1</div><div class="nb">0</div><div class="nb">1</div><div class="nb">0</div></div><div class="arr">→</div><div class="hexv">A</div><div class="decv">= 10</div></div>
+        <div class="nibrow"><div class="bits"><div class="nb">1</div><div class="nb">1</div><div class="nb">0</div><div class="nb">1</div></div><div class="arr">→</div><div class="hexv">D</div><div class="decv">= 13</div></div>
+        <div class="nibrow"><div class="bits"><div class="nb">1</div><div class="nb">1</div><div class="nb">1</div><div class="nb">1</div></div><div class="arr">→</div><div class="hexv">F</div><div class="decv">= 15</div></div>
+      </div>
+      <p>所以 IPv6 的 <strong style="color:var(--host)">0DB8</strong> 是 4 個 hex 字元 × 4 bit = 16 個 bit。Hover 每個字元就能看到對應的 4 個 bit 亮起來。</p>
+    </div>
+
+    <div class="dsec">
+      <div class="dsec-title">為什麼 IPv4 用十進制？</div>
+      <p>IPv4 只有 32 bit，分成 4 組各 8 bit，每組最大值是 255。人類讀 <strong>192.168.1.1</strong> 比讀 <strong>11000000.10101000.00000001.00000001</strong> 容易多了。</p>
+      <p>IPv6 有 128 bit，如果也用十進制會是 39 位數，所以改用十六進制，縮短到 32 個字元。</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── state ──
+let mode='v4', bits=[], pfx=24, afInt=null, afOn=false, pktOpen=false, debT=null, drawerOpen=false;
+const V4=32, V6=128;
+const bc=()=>mode==='v4'?V4:V6;
+
+// ── drawer ──
+function toggleDrawer(){drawerOpen?closeDrawer():openDrawer();}
+function openDrawer(){
+  drawerOpen=true;
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('vis');
+  document.getElementById('drawerBtn').classList.add('open');
+}
+function closeDrawer(){
+  drawerOpen=false;
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('vis');
+  document.getElementById('drawerBtn').classList.remove('open');
+}
+
+// ── class detection ──
+const CI={
+  A:{cls:'ca',name:'Class A',desc:'1–126 開頭，大型網路，預設 /8'},
+  LO:{cls:'cc',name:'Loopback',desc:'127.x.x.x 本機迴路，不上網路'},
+  B:{cls:'cb',name:'Class B',desc:'128–191 開頭，中型網路，預設 /16'},
+  C:{cls:'cc',name:'Class C',desc:'192–223 開頭，小型網路，預設 /24'},
+  D:{cls:'cd',name:'Class D',desc:'224–239 開頭，Multicast 群播'},
+  E:{cls:'ce',name:'Class E',desc:'240–255 開頭，保留實驗用'},
+};
+function getCls(o){if(o>=1&&o<=126)return'A';if(o===127)return'LO';if(o>=128&&o<=191)return'B';if(o>=192&&o<=223)return'C';if(o>=224&&o<=239)return'D';return'E';}
+function isPriv(a,b,c){return a===10||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a===169&&b===254);}
+
+function showClass(){
+  if(mode!=='v4'){document.getElementById('crow').style.display='none';return;}
+  document.getElementById('crow').style.display='flex';
+  let o1=0;for(let b=0;b<8;b++)o1=(o1<<1)|bits[b];
+  let o2=0;for(let b=8;b<16;b++)o2=(o2<<1)|bits[b];
+  let o3=0;for(let b=16;b<24;b++)o3=(o3<<1)|bits[b];
+  const k=getCls(o1),info=CI[k];
+  const badge=document.getElementById('cbadge');
+  badge.className='cbadge '+info.cls;
+  document.getElementById('clet').textContent=k==='LO'?'↩':k;
+  document.getElementById('cname').textContent=info.name;
+  document.getElementById('cdesc').textContent=info.desc;
+  document.getElementById('cpriv').style.display=isPriv(o1,o2,o3)?'inline-flex':'none';
+}
+
+// ── bit helpers ──
+function getOcts(){const r=[];for(let g=0;g<4;g++){let v=0;for(let b=0;b<8;b++)v=(v<<1)|bits[g*8+b];r.push(v);}return r;}
+function getV6Grps(){const r=[];for(let g=0;g<8;g++){let v=0;for(let b=0;b<16;b++)v=(v<<1)|bits[g*16+b];r.push(v);}return r;}
+
+// ── parse input ──
+function parseInput(){
+  const raw=document.getElementById('iip').value.trim();
+  const mr=document.getElementById('imask').value.trim();
+  const err=document.getElementById('ierr');
+  const ie=document.getElementById('iip'), me=document.getElementById('imask');
+  err.textContent=''; ie.classList.remove('err'); me.classList.remove('err');
+  if(mode==='v4'){
+    const p=raw.split('.');
+    if(p.length!==4){ie.classList.add('err');err.textContent='格式：x.x.x.x';return;}
+    const n=p.map(Number);
+    if(n.some(x=>isNaN(x)||x<0||x>255)){ie.classList.add('err');err.textContent='每段 0–255';return;}
+    if(mr!==''){const m=parseInt(mr);if(isNaN(m)||m<1||m>30){me.classList.add('err');err.textContent='/1–/30';return;}pfx=m;}
+    for(let g=0;g<4;g++)for(let b=0;b<8;b++)bits[g*8+b]=(n[g]>>(7-b))&1;
+  } else {
+    let ex=raw;
+    if(ex.includes('::')){const s=ex.split('::');const l=s[0]?s[0].split(':'):[];const ri=s[1]?s[1].split(':'):[];const ms=8-l.length-ri.length;ex=[...l,...Array(ms).fill('0'),...ri].join(':');}
+    const g=ex.split(':');
+    if(g.length!==8){ie.classList.add('err');err.textContent='應為 8 組';return;}
+    const n=g.map(x=>parseInt(x,16));
+    if(n.some(x=>isNaN(x)||x<0||x>65535)){ie.classList.add('err');err.textContent='每組 0000–FFFF';return;}
+    if(mr!==''){const m=parseInt(mr);if(isNaN(m)||m<1||m>120){me.classList.add('err');err.textContent='/1–/120';return;}pfx=m;}
+    for(let g=0;g<8;g++)for(let b=0;b<16;b++)bits[g*16+b]=(n[g]>>(15-b))&1;
+  }
+  updateSlider(); render();
+}
+
+function syncIn(){
+  if(mode==='v4'){
+    document.getElementById('iip').value=getOcts().join('.');
+    document.getElementById('imask').value=pfx;
+  } else {
+    document.getElementById('iip').value=getV6Grps().map(v=>v.toString(16).toUpperCase().padStart(4,'0')).join(':');
+    document.getElementById('imask').value=pfx;
+  }
+}
+
+function updateSlider(){
+  const s=document.getElementById('pslider');
+  const mx=mode==='v4'?30:120, mn=1;
+  s.min=mn; s.max=mx; s.value=pfx;
+  s.style.setProperty('--fp',((pfx-mn)/(mx-mn)*100)+'%');
+  document.getElementById('pval').textContent='/'+pfx;
+  document.getElementById('plbl').textContent=mode==='v4'?'Subnet Mask':'Prefix Length';
+  document.getElementById('imask').max=mx;
+}
+
+function render(){renderGrid();renderDisp();renderInfo();showClass();syncIn();}
+
+// ── v4 grid ──
+function renderV4(){
+  document.getElementById('v4g').style.display='flex';
+  document.getElementById('v6row').style.display='none';
+  document.getElementById('olabels').style.display='flex';
+  const grid=document.getElementById('v4g'), labs=document.getElementById('olabels');
+  grid.innerHTML=''; labs.innerHTML='';
+  for(let g=0;g<4;g++){
+    const lg=document.createElement('div'); lg.className='ogrp';
+    for(let b=0;b<8;b++){const t=document.createElement('span');t.className='otag';t.textContent=b===0?`O${g+1}`:'';lg.appendChild(t);}
+    if(g<3){const sp=document.createElement('span');sp.style.width='8px';sp.style.display='inline-block';lg.appendChild(sp);}
+    labs.appendChild(lg);
+    const grp=document.createElement('div'); grp.className='v4grp';
+    for(let b=0;b<8;b++)grp.appendChild(makeCell(g*8+b));
+    grid.appendChild(grp);
+  }
+}
+
+// ── v6 grid ── new layout
+function renderV6(){
+  document.getElementById('v4g').style.display='none';
+  document.getElementById('olabels').style.display='none';
+  const row=document.getElementById('v6row');
+  row.style.display='flex'; row.innerHTML=''; row.classList.remove('has-hover');
+
+  for(let g=0;g<8;g++){
+    const s=g*16;
+    const allN=(s+15)<pfx, allH=s>=pfx;
+    const gc=allN?'gn':allH?'gh':'gs';
+
+    // card container
+    const card=document.createElement('div');
+    card.className='v6card '+gc;
+    card.dataset.grp=g;
+
+    // ── hex chars row: 4 chars, each over 4 bits ──
+    let val=0; for(let b=0;b<16;b++) val=(val<<1)|bits[s+b];
+    const hexStr=val.toString(16).toUpperCase().padStart(4,'0');
+
+    const charsRow=document.createElement('div');
+    charsRow.className='v6chars';
+
+    for(let c=0;c<4;c++){
+      const ch=document.createElement('div');
+      ch.className='v6char '+gc;
+      ch.textContent=hexStr[c];
+      ch.dataset.grp=g; ch.dataset.nibble=c;
+
+      // char hover → highlight corresponding 4 bits
+      ch.addEventListener('mouseenter',()=>{
+        charsRow.classList.add('char-hover');
+        // highlight this char
+        charsRow.querySelectorAll('.v6char').forEach((x,i)=>x.classList.toggle('char-hl',i===c));
+        // dim/highlight nibble bit groups
+        card.querySelectorAll('.v6nibble').forEach((nb,i)=>{
+          nb.classList.toggle('nib-dim',i!==c);
+          nb.classList.toggle('nib-hl',i===c);
+        });
+      });
+      ch.addEventListener('mouseleave',()=>{
+        charsRow.classList.remove('char-hover');
+        charsRow.querySelectorAll('.v6char').forEach(x=>x.classList.remove('char-hl'));
+        card.querySelectorAll('.v6nibble').forEach(nb=>{nb.classList.remove('nib-dim','nib-hl');});
+      });
+
+      charsRow.appendChild(ch);
+    }
+    card.appendChild(charsRow);
+
+    // ── bits: 4 nibbles of 4 bits each ──
+    const bitsRow=document.createElement('div');
+    bitsRow.className='v6bits';
+    for(let n=0;n<4;n++){
+      const nibble=document.createElement('div');
+      nibble.className='v6nibble';
+      nibble.dataset.nibble=n;
+      for(let b=0;b<4;b++){
+        nibble.appendChild(makeCell(s+n*4+b));
+      }
+      bitsRow.appendChild(nibble);
+    }
+    card.appendChild(bitsRow);
+
+    // group hover → highlight IP display segment, dim other cards
+    card.addEventListener('mouseenter',()=>{
+      row.classList.add('has-hover');
+      row.querySelectorAll('.v6card').forEach(c=>c.classList.remove('hovered'));
+      card.classList.add('hovered');
+      // highlight corresponding span in IP display
+      const disp=document.getElementById('ipdisp');
+      disp.classList.add('grp-hover');
+      disp.querySelectorAll('span.seg').forEach(sp=>sp.classList.toggle('hl',parseInt(sp.dataset.grp)===g));
+    });
+    card.addEventListener('mouseleave',()=>{
+      row.classList.remove('has-hover');
+      card.classList.remove('hovered');
+      const disp=document.getElementById('ipdisp');
+      disp.classList.remove('grp-hover');
+      disp.querySelectorAll('span.seg').forEach(sp=>sp.classList.remove('hl'));
+    });
+
+    row.appendChild(card);
+  }
+}
+
+function renderGrid(){
+  if(mode==='v4')renderV4();else renderV6();
+}
+
+// ── bit cell factory ──
+function makeCell(idx){
+  const c=document.createElement('div'); c.className='bc'; c.textContent=bits[idx]; c.dataset.idx=idx;
+  const iN=idx<pfx;
+  c.classList.add(bits[idx]===1?'o':'z'); c.classList.add(iN?'nn':'hh');
+  if(iN)c.classList.add('lk'); else c.addEventListener('click',()=>flip(idx));
+  return c;
+}
+
+// ── flip ──
+function flip(idx){
+  if(idx<pfx)return;
+  bits[idx]=bits[idx]===1?0:1;
+  const c=document.querySelector(`[data-idx="${idx}"]`);
+  if(c){c.classList.remove('fa');void c.offsetWidth;c.classList.add('fa');c.textContent=bits[idx];c.className='bc';c.classList.add(bits[idx]===1?'o':'z','hh');c.dataset.idx=idx;c.addEventListener('click',()=>flip(idx));}
+  if(mode==='v6') updV6Char(Math.floor(idx/16));
+  renderDisp(); renderInfo(); syncIn();
+}
+
+// update hex char label after bit flip
+function updV6Char(g){
+  let val=0; for(let b=0;b<16;b++) val=(val<<1)|bits[g*16+b];
+  const hexStr=val.toString(16).toUpperCase().padStart(4,'0');
+  const card=document.querySelector(`.v6card[data-grp="${g}"]`);
+  if(card){
+    card.querySelectorAll('.v6char').forEach((ch,i)=>ch.textContent=hexStr[i]);
+  }
+}
+
+// ── IP display ──
+// v6: each group wrapped in span.seg with data-grp for hover targeting
+function renderDisp(){
+  const d=document.getElementById('ipdisp');
+  if(mode==='v4'){
+    d.innerHTML=getOcts().map((v,i)=>`<span class="${i*8<pfx?'n':'h'}">${v}</span>`+(i<3?'<span class="d">.</span>':'')).join('');
+  } else {
+    d.innerHTML=getV6Grps().map((v,i)=>{
+      const col=i*16<pfx?'n':'h';
+      const hex=v.toString(16).toUpperCase().padStart(4,'0');
+      return `<span class="seg ${col}" data-grp="${i}">${hex}</span>`+(i<7?'<span class="d">:</span>':'');
+    }).join('');
+  }
+}
+
+// ── info boxes ──
+function renderInfo(){
+  const hb=bc()-pfx;
+  let hc=hb>=53?null:Math.pow(2,hb)-(mode==='v4'?2:0);
+  const nb=[...bits]; for(let i=pfx;i<bc();i++) nb[i]=0;
+  let na;
+  if(mode==='v4'){const o=[];for(let g=0;g<4;g++){let v=0;for(let b=0;b<8;b++)v=(v<<1)|nb[g*8+b];o.push(v);}na=o.join('.');}
+  else{const o=[];for(let g=0;g<8;g++){let v=0;for(let b=0;b<16;b++)v=(v<<1)|nb[g*16+b];o.push(v.toString(16).toUpperCase().padStart(4,'0'));}na=o.slice(0,4).join(':')+'::';}
+  document.getElementById('naddr').textContent=na;
+  let hs=hc===null?`2^${hb}`:hc>=1e12?(hc/1e12).toFixed(1)+' 兆':hc>=1e9?(hc/1e9).toFixed(1)+' 十億':hc>=1e6?(hc/1e6).toFixed(1)+' 百萬':hc>=1000?hc.toLocaleString():Math.max(0,hc).toString();
+  document.getElementById('hcnt').textContent=hs+' 台';
+  document.getElementById('hdesc').textContent=`/${pfx}：${hb} 個 host bits\n2^${hb}${mode==='v4'?' - 2':''}  =  ${hs} 台可用`;
+}
+
+// ── auto flip ──
+function toggleAF(){
+  afOn=!afOn;
+  const b=document.getElementById('baf');
+  if(afOn){
+    b.classList.add('on');b.textContent='⏸ 停止';
+    afInt=setInterval(()=>{
+      const hi=[];for(let i=pfx;i<bc();i++)hi.push(i);
+      if(!hi.length)return;
+      const idx=hi[Math.floor(Math.random()*hi.length)];
+      bits[idx]=bits[idx]===1?0:1;
+      const c=document.querySelector(`[data-idx="${idx}"]`);
+      if(c){c.classList.remove('fa');void c.offsetWidth;c.classList.add('fa');c.textContent=bits[idx];c.className='bc';c.classList.add(bits[idx]===1?'o':'z','hh');c.dataset.idx=idx;c.addEventListener('click',()=>flip(idx));}
+      if(mode==='v6')updV6Char(Math.floor(idx/16));
+      renderDisp();renderInfo();syncIn();
+    },180);
+  } else {
+    b.classList.remove('on');b.textContent='▶ 自動翻轉 HOST';clearInterval(afInt);
+  }
+}
+function stopAF(){if(!afOn)return;afOn=false;clearInterval(afInt);const b=document.getElementById('baf');b.classList.remove('on');b.textContent='▶ 自動翻轉 HOST';}
+function randomize(){stopAF();for(let i=0;i<bc();i++)bits[i]=Math.random()>.5?1:0;render();}
+function resetB(){
+  stopAF(); bits=new Array(bc()).fill(0);
+  if(mode==='v4'){const p=[1,1,0,0,0,0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1];for(let i=0;i<32;i++)bits[i]=p[i];pfx=24;}
+  else{const g=[0x2001,0x0DB8,0x85A3,0x0000,0x0000,0x8A2E,0x0370,0x7334];for(let i=0;i<8;i++)for(let b=0;b<16;b++)bits[i*16+b]=(g[i]>>(15-b))&1;pfx=64;}
+  updateSlider();render();
+}
+
+// ── tab ──
+function switchTab(nm){
+  stopAF();
+  if(nm==='compare'){
+    document.getElementById('pv4').style.display='none';
+    document.getElementById('pcmp').style.display='block';
+    document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===2));
+    renderCmp();return;
+  }
+  document.getElementById('pv4').style.display='block';
+  document.getElementById('pcmp').style.display='none';
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',(i===0&&nm==='v4')||(i===1&&nm==='v6')));
+  mode=nm;
+  document.getElementById('iip').placeholder=mode==='v4'?'192.168.1.1':'2001:0DB8:85A3::8A2E:0370:7334';
+  document.getElementById('imask').placeholder=mode==='v4'?'24':'64';
+  resetB();
+}
+
+function renderCmp(){
+  const v4=document.getElementById('mv4');v4.innerHTML='';
+  for(let i=0;i<32;i++){const d=document.createElement('div');d.className='mb'+(i<24?' on':'');v4.appendChild(d);}
+  const v6=document.getElementById('mv6');v6.innerHTML='';
+  for(let i=0;i<128;i++){const d=document.createElement('div');d.className='mb'+(i<64?' v6on':'');v6.appendChild(d);}
+  setInterval(()=>{const c=v4.querySelectorAll('.mb:not(.on)');if(c.length){const r=Math.floor(Math.random()*c.length);c[r].classList.add('on');setTimeout(()=>c[r].classList.remove('on'),600);}},300);
+}
+
+function togglePkt(){pktOpen=!pktOpen;document.getElementById('pkspeech').classList.toggle('vis',pktOpen);}
+
+// ── events ──
+document.getElementById('pslider').addEventListener('input',function(){
+  stopAF(); pfx=parseInt(this.value);
+  const mx=parseInt(this.max),mn=parseInt(this.min);
+  this.style.setProperty('--fp',((pfx-mn)/(mx-mn)*100)+'%');
+  document.getElementById('pval').textContent='/'+pfx;
+  document.getElementById('imask').value=pfx;
+  render();
+});
+document.getElementById('iip').addEventListener('input',()=>{clearTimeout(debT);debT=setTimeout(parseInput,600);});
+document.getElementById('iip').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(debT);parseInput();}});
+document.getElementById('imask').addEventListener('input',()=>{clearTimeout(debT);debT=setTimeout(parseInput,400);});
+document.getElementById('imask').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(debT);parseInput();}});
+
+resetB();
+</script>
+</body>
+</html>
